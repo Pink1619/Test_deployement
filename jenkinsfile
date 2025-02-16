@@ -1,0 +1,143 @@
+// pipeline {
+//     agent any
+
+//     parameters {
+//         // Define a string parameter for the branch name
+//         string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Branch to deploy from GitHub')
+//     }
+
+//     environment {
+//         GCP_PROJECT = 'your-gcp-project-id'  // Google Cloud Project ID
+//         GCP_REGION = 'us-central1'  // Google Cloud Region
+//         GCP_SERVICE_ACCOUNT = 'google-service-key.json'  // Service Account Key file in Jenkins credentials
+//         GCP_IMAGE_NAME = 'gcr.io/$GCP_PROJECT/my-docker-image:$BRANCH_NAME'  // Tag Docker image based on branch name
+//     }
+
+//     stages {
+//         stage('Checkout') {
+//             steps {
+//                 script {
+//                     // Checkout the code from the specified branch
+//                     echo "Checking out branch: ${params.BRANCH_NAME}"
+//                     git branch: "${params.BRANCH_NAME}", url: 'https://github.com/yourusername/yourrepository.git'
+//                 }
+//             }
+//         }
+
+//         stage('Build Docker Image') {
+//             steps {
+//                 script {
+//                     // Build Docker image based on the branch name
+//                     echo "Building Docker image with tag: ${GCP_IMAGE_NAME}"
+//                     sh 'docker build -t ${GCP_IMAGE_NAME} .'
+//                 }
+//             }
+//         }
+
+//         stage('Push Docker Image to Google Container Registry') {
+//             steps {
+//                 script {
+//                     // Authenticate with Google Cloud using the service account
+//                     echo "Authenticating with Google Cloud"
+//                     sh '''
+//                         gcloud auth activate-service-account --key-file=$GCP_SERVICE_ACCOUNT
+//                         gcloud config set project $GCP_PROJECT
+//                     '''
+//                     // Push the Docker image to Google Container Registry
+//                     echo "Pushing Docker image to GCR: ${GCP_IMAGE_NAME}"
+//                     sh 'docker push ${GCP_IMAGE_NAME}'
+//                 }
+//             }
+//         }
+
+//         stage('Deploy to Google Cloud Run') {
+//             steps {
+//                 script {
+//                     // Deploy the Docker image to Google Cloud Run
+//                     echo "Deploying to Google Cloud Run"
+//                     sh '''
+//                         gcloud run deploy my-service --image ${GCP_IMAGE_NAME} --region $GCP_REGION --platform managed --allow-unauthenticated
+//                     '''
+//                 }
+//             }
+//         }
+//     }
+
+//     post {
+//         always {
+//             cleanWs()  // Clean up workspace after the build
+//         }
+//     }
+// }
+pipeline {
+    agent any
+
+    parameters {
+        // Parameter to choose the branch you want to deploy
+        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Branch to deploy')
+    }
+
+    environment {
+        // Define variables like image name and Docker registry
+        IMAGE_NAME = 'Test-app'
+        LOCAL_PORT = '8000'  // Define the port on which the app will be exposed
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Checkout the code from the specified branch
+                echo "Checking out the repository for branch: ${params.BRANCH_NAME}"
+                git branch: "${params.BRANCH_NAME}", url: 'https://github.com/Pink1619/Test_deployement.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                // Build the Docker image
+                echo "Building Docker image: ${IMAGE_NAME}"
+                sh 'docker build -t ${IMAGE_NAME} .'
+            }
+        }
+
+        stage('Stop Existing Container') {
+            steps {
+                script {
+                    // Check if a container with the same name is already running and stop it
+                    def existingContainer = sh(script: "docker ps -q -f name=${IMAGE_NAME}", returnStdout: true).trim()
+                    if (existingContainer) {
+                        echo "Stopping existing container with ID: ${existingContainer}"
+                        sh "docker stop ${existingContainer}"
+                        sh "docker rm ${existingContainer}"
+                    }
+                }
+            }
+        }
+
+        stage('Run Docker Container Locally') {
+            steps {
+                // Run the Docker container locally on your machine
+                echo "Running Docker container locally"
+                sh "docker run -d -p ${LOCAL_PORT}:8000 --name ${IMAGE_NAME} ${IMAGE_NAME}"
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                // Verify that the container is running by accessing it locally
+                echo "Verifying the deployment by accessing the app on localhost"
+                sh "curl http://localhost:${LOCAL_PORT}"
+            }
+        }
+    }
+
+    post {
+        always {
+            // Clean up Docker images and containers after the deployment is done (optional)
+            echo "Cleaning up Docker containers and images"
+            sh "docker system prune -f"
+        }
+    }
+}
+
+
