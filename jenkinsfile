@@ -79,7 +79,7 @@ pipeline {
 
     environment {
         // Define variables like image name and Docker registry
-        IMAGE_NAME = 'Test-app'
+        IMAGE_NAME = 'test-app'
         LOCAL_PORT = '8000'  // Define the port on which the app will be exposed
     }
 
